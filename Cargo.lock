@@ -1,0 +1,4 @@
+[root]
+name = "cargo-download"
+version = "0.1.0"
+
