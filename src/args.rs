@@ -1,11 +1,15 @@
 //! Module for handling command line arguments.
 
 use std::env;
+use std::error::Error;
+use std::fmt;
 use std::ffi::OsString;
 use std::iter::IntoIterator;
+use std::str::FromStr;
 
 use clap::{self, AppSettings, Arg, ArgMatches};
 use conv::TryFrom;
+use semver::{VersionReq, ReqParseError};
 
 use super::{NAME, VERSION};
 
@@ -37,8 +41,7 @@ pub struct Options {
     /// If -q has been used instead, this will be negative.
     pub verbosity: isize,
     /// Crate to download.
-    pub crate_: String,
-    // TODO: allow to specify crate version
+    pub crate_: Crate,
 }
 
 #[allow(dead_code)]
@@ -57,9 +60,44 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
         let quiet_count = matches.occurrences_of(OPT_QUIET) as isize;
         let verbosity = verbose_count - quiet_count;
 
-        let crate_ = matches.value_of(ARG_CRATE).unwrap().to_owned();
+        let crate_ = Crate::from_str(matches.value_of(ARG_CRATE).unwrap())?;
 
         Ok(Options{verbosity, crate_})
+    }
+}
+
+
+/// Specification of a crate to download.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Crate {
+    pub name: String,
+    pub version: VersionReq,
+}
+
+impl FromStr for Crate {
+    type Err = CrateError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<_> = s.splitn(2, "=").map(|p| p.trim()).collect();
+        let name = parts[0].to_owned();
+        if parts.len() < 2 {
+            let valid_name =
+                name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_');
+            if valid_name {
+                Ok(Crate{name, version: VersionReq::any()})
+            } else {
+                Err(CrateError::Name(name))
+            }
+        } else {
+            let version = VersionReq::parse(parts[1])?;
+            Ok(Crate{name, version})
+        }
+    }
+}
+
+impl fmt::Display for Crate {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "{}={}", self.name, self.version)
     }
 }
 
@@ -69,6 +107,38 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
 pub enum ArgsError {
     /// General when parsing the arguments.
     Parse(clap::Error),
+    /// Error when parsing crate version.
+    Crate(CrateError),
+}
+
+#[derive(Debug)]
+pub enum CrateError {
+    /// General syntax error of the crate specification.
+    Name(String),
+    /// Error parsing the semver spec of the crate.
+    Version(ReqParseError),
+}
+impl From<ReqParseError> for CrateError {
+    fn from(input: ReqParseError) -> Self {
+        CrateError::Version(input)
+    }
+}
+impl Error for CrateError {
+    fn description(&self) -> &str { "invalid crate specification" }
+    fn cause(&self) -> Option<&Error> {
+        match self {
+            &CrateError::Version(ref e) => Some(e),
+            _ => None,
+        }
+    }
+}
+impl fmt::Display for CrateError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &CrateError::Name(ref n) => write!(fmt, "invalid crate name `{}`", n),
+            &CrateError::Version(ref e) => write!(fmt, "invalid crate version: {}", e),
+        }
+    }
 }
 
 
@@ -106,9 +176,16 @@ fn create_parser<'p>() -> Parser<'p> {
         .setting(AppSettings::ColorNever)
 
         .arg(Arg::with_name(ARG_CRATE)
-            .value_name("CRATE")
+            .value_name("CRATE[=VERSION]")
             .required(true)
-            .help("Crate to download"))
+            .help("Crate to download")
+            .long_help(concat!(
+                "The crate to download.\n\n",
+                "This can be just a crate name (like \"foo\"), in which case ",
+                "the newest version of the crate is fetched. ",
+                "Alternatively, the VERSION requirement can be given after ",
+                "the equal sign (=) in the usual Cargo.toml format ",
+                "(e.g. \"foo==0.9\" for the exact version)")))
 
         // Verbosity flags.
         .arg(Arg::with_name(OPT_VERBOSE)

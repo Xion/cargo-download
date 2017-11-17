@@ -32,7 +32,11 @@ To download the newest version of `foo` crate, do this:
 
     $ cargo download foo >foo.gz
 
-(Downloading a specific version & automatically extracting the archive is coming soon!)
+You can also use the standard _Cargo.toml_ notation to specify a particular version:
+
+    $ cargo download foo==0.9 >foo-0.9.gz
+
+For more detailed usage instructions, run `cargo download --help`.
 
 ## License
 
