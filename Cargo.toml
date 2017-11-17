@@ -1,13 +1,15 @@
 [package]
 name = "cargo-download"
-version = "0.1.0"
+version = "0.0.1"
 description = "Cargo subcommand for downloading crate sources"
 authors = ["Karol Kuczmarski <karol.kuczmarski@gmail.com>"]
 keywords = ["cargo", "subcommand", "download", "fetch"]
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/Xion/cargo-download.git"
 categories = ["development-tools", "development-tools:cargo-plugins"]
+documentation = "https://docs.rs/cargo-download"
+homepage = "https://github.com/Xion/cargo-download"
+repository = "https://github.com/Xion/cargo-download.git"
 
 [[bin]]
 name = "cargo-download"
@@ -17,12 +19,11 @@ ansi_term = "0.9"
 clap = "2.26.0"
 conv = "0.3"
 derive-error = "0.0.3"
-enum_derive = "*"
 exitcode = "1.0"
 isatty = "0.1.1"
 itertools = "0.6"
-lazy_static = "*"
-log = "*"
+lazy_static = "0.2"
+log = "0.3"
 maplit = "0.1"
 reqwest = "0.8"
 serde_json = "1.0"

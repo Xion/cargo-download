@@ -94,6 +94,7 @@ fn create_parser<'p>() -> Parser<'p> {
         parser = parser.version(version);
     }
     parser
+        .bin_name("cargo download")
         .about(*ABOUT)
         .author(crate_authors!(", "))
 
