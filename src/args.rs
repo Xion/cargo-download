@@ -36,8 +36,9 @@ pub struct Options {
     /// Corresponds to the number of times the -v flag has been passed.
     /// If -q has been used instead, this will be negative.
     pub verbosity: isize,
-
-    // TODO: actual options
+    /// Crate to download.
+    pub crate_: String,
+    // TODO: allow to specify crate version
 }
 
 #[allow(dead_code)]
@@ -56,7 +57,9 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
         let quiet_count = matches.occurrences_of(OPT_QUIET) as isize;
         let verbosity = verbose_count - quiet_count;
 
-        Ok(Options{verbosity})
+        let crate_ = matches.value_of(ARG_CRATE).unwrap().to_owned();
+
+        Ok(Options{verbosity, crate_})
     }
 }
 
@@ -80,6 +83,7 @@ lazy_static! {
     static ref ABOUT: &'static str = option_env!("CARGO_PKG_DESCRIPTION").unwrap_or("");
 }
 
+const ARG_CRATE: &'static str = "crate";
 const OPT_VERBOSE: &'static str = "verbose";
 const OPT_QUIET: &'static str = "quiet";
 
@@ -100,7 +104,10 @@ fn create_parser<'p>() -> Parser<'p> {
         .setting(AppSettings::DeriveDisplayOrder)
         .setting(AppSettings::ColorNever)
 
-        // TODO: arguments
+        .arg(Arg::with_name(ARG_CRATE)
+            .value_name("CRATE")
+            .required(true)
+            .help("Crate to download"))
 
         // Verbosity flags.
         .arg(Arg::with_name(OPT_VERBOSE)
