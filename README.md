@@ -1,5 +1,8 @@
 # cargo-download
 
+[![crates.io](https://img.shields.io/crates/v/cargo-download.svg)](https://crates.io/crates/cargo-download)
+[![Build Status](https://travis-ci.org/Xion/cargo-download.svg?branch=master)](https://travis-ci.org/Xion/cargo-download)
+
 A cargo subcommand for downloading crates from _crates.io_
 
 ## About
