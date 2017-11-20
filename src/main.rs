@@ -31,6 +31,7 @@ mod args;
 mod logging;
 
 
+use std::borrow::Cow;
 use std::io::{self, Read, Write};
 use std::error::Error;
 use std::process::exit;
@@ -62,13 +63,18 @@ fn main() {
     logging::init(opts.verbosity).unwrap();
     log_signature();
 
-    // TODO: if the crate version is exact, skip the /version API call
-    let version = get_newest_version(&opts.crate_).unwrap_or_else(|e| {
-        error!("Failed to get the newest version of crate {}: {}", opts.crate_, e);
-        exit(exitcode::TEMPFAIL);
-    });
-    let crate_bytes = download_crate(&opts.crate_.name, &version).unwrap_or_else(|e| {
-        error!("Failed to download crate `{}=={}`: {}", opts.crate_.name, version, e);
+    let version = match opts.crate_.exact_version() {
+        Some(v) => {
+            debug!("Exact crate version given in arguments, not querying crates.io");
+            Cow::Borrowed(v)
+        }
+        None => Cow::Owned(get_newest_version(&opts.crate_).unwrap_or_else(|e| {
+            error!("Failed to get the newest version of crate {}: {}", opts.crate_, e);
+            exit(exitcode::TEMPFAIL);
+        })),
+    };
+    let crate_bytes = download_crate(&opts.crate_.name(), &version).unwrap_or_else(|e| {
+        error!("Failed to download crate `{}=={}`: {}", opts.crate_.name(), version, e);
         exit(exitcode::TEMPFAIL);
     });
 
@@ -78,7 +84,7 @@ fn main() {
         // single top-level directory) this is done automatically
         // if you simply extract them in $CWD.
         // TODO: allow to adjust this via an "output" command line flag
-        let dir = format!("{}-{}", opts.crate_.name, version);
+        let dir = format!("{}-{}", opts.crate_.name(), version);
         debug!("Extracting crate archive to {}/", dir);
         let gzip = flate2::read::GzDecoder::new(&crate_bytes[..]).unwrap();
         let mut archive = tar::Archive::new(gzip);
@@ -128,7 +134,7 @@ const CRATES_API_ROOT: &'static str = "https://crates.io/api/v1/crates";
 /// Talk to crates.io to get the newest version of given crate
 /// that matches specified version requirements.
 fn get_newest_version(crate_: &Crate) -> Result<Version, Box<Error>> {
-    let versions_url = format!("{}/{}/versions", CRATES_API_ROOT, crate_.name);
+    let versions_url = format!("{}/{}/versions", CRATES_API_ROOT, crate_.name());
     debug!("Fetching latest matching version of crate `{}` from {}", crate_, versions_url);
     let response: Json = reqwest::get(&versions_url)?.json()?;
 
@@ -146,8 +152,9 @@ fn get_newest_version(crate_: &Crate) -> Result<Version, Box<Error>> {
         return Err("no valid versions found".into());
     }
 
+    let version_req = crate_.version_requirement();
     versions.sort_by(|a, b| b.cmp(a));
-    versions.into_iter().find(|v| crate_.version.matches(v))
+    versions.into_iter().find(|v| version_req.matches(v))
         .map(|v| { info!("Latest version of crate {} is {}", crate_, v); v.to_owned() })
         .ok_or_else(|| "no matching version found".into())
 }

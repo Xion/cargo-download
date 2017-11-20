@@ -1,5 +1,6 @@
 //! Module for handling command line arguments.
 
+use std::borrow::Cow;
 use std::env;
 use std::error::Error;
 use std::fmt;
@@ -9,7 +10,7 @@ use std::str::FromStr;
 
 use clap::{self, AppSettings, Arg, ArgMatches};
 use conv::TryFrom;
-use semver::{VersionReq, ReqParseError};
+use semver::{Version, VersionReq, ReqParseError, SemVerError};
 
 use super::{NAME, VERSION};
 
@@ -73,10 +74,9 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
 /// Specification of a crate to download.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Crate {
-    pub name: String,
-    pub version: VersionReq,
+    name: String,
+    version: CrateVersion,
 }
-
 impl FromStr for Crate {
     type Err = CrateError;
 
@@ -87,20 +87,72 @@ impl FromStr for Crate {
             let valid_name =
                 name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_');
             if valid_name {
-                Ok(Crate{name, version: VersionReq::any()})
+                Ok(Crate{
+                    name,
+                    version: CrateVersion::Other(VersionReq::any()),
+                })
             } else {
                 Err(CrateError::Name(name))
             }
         } else {
-            let version = VersionReq::parse(parts[1])?;
+            let version = CrateVersion::from_str(parts[1])?;
             Ok(Crate{name, version})
         }
     }
 }
+impl Crate {
+    #[inline]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
 
+    pub fn exact_version(&self) -> Option<&Version> {
+        match self.version {
+            CrateVersion::Exact(ref v) => Some(v),
+            _ => None,
+        }
+    }
+
+    pub fn version_requirement(&self) -> Cow<VersionReq> {
+        match self.version {
+            CrateVersion::Exact(ref v) => Cow::Owned(VersionReq::exact(v)),
+            CrateVersion::Other(ref r) => Cow::Borrowed(r),
+        }
+    }
+}
 impl fmt::Display for Crate {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         write!(fmt, "{}={}", self.name, self.version)
+    }
+}
+
+/// Crate version.
+#[derive(Debug, Clone, Eq, PartialEq)]
+enum CrateVersion {
+    /// Exact version, like =1.0.0.
+    Exact(Version),
+    /// Non-exact version, like ^1.0.0.
+    Other(VersionReq)
+}
+impl FromStr for CrateVersion {
+    type Err = CrateVersionError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.starts_with("=") {
+            let version = Version::from_str(&s[1..])?;
+            Ok(CrateVersion::Exact(version))
+        } else {
+            let version_req = VersionReq::from_str(s)?;
+            Ok(CrateVersion::Other(version_req))
+        }
+    }
+}
+impl fmt::Display for CrateVersion {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &CrateVersion::Exact(ref v) => write!(fmt, "={}", v),
+            &CrateVersion::Other(ref r) => write!(fmt, "{}", r),
+        }
     }
 }
 
@@ -114,15 +166,16 @@ pub enum ArgsError {
     Crate(CrateError),
 }
 
+/// Error that can occur while parsing CRATE argument.
 #[derive(Debug)]
 pub enum CrateError {
     /// General syntax error of the crate specification.
     Name(String),
     /// Error parsing the semver spec of the crate.
-    Version(ReqParseError),
+    Version(CrateVersionError),
 }
-impl From<ReqParseError> for CrateError {
-    fn from(input: ReqParseError) -> Self {
+impl From<CrateVersionError> for CrateError {
+    fn from(input: CrateVersionError) -> Self {
         CrateError::Version(input)
     }
 }
@@ -143,6 +196,22 @@ impl fmt::Display for CrateError {
         }
     }
 }
+
+/// Error that can occur while parsing crate version.
+#[derive(Debug, Error)]
+pub enum CrateVersionError {
+    Syntax(SemVerError),
+    Semantics(ReqParseError),
+}
+// impl fmt::Display for CrateVersionError {
+//     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+//         match self {
+//             &CrateVersionError::Syntax(ref e) => write!(fmt, "invalid crate version: {}", e),
+//             $CrateVersionError::Semantics(ref e) =>
+//                 write!(fmt, "incorrect crate version requirement: {}", e),
+//         }
+//     }
+// }
 
 
 // Parser configuration
