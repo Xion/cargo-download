@@ -1,6 +1,6 @@
 [package]
 name = "cargo-download"
-version = "0.0.2"
+version = "0.0.3"
 description = "Cargo subcommand for downloading crate sources"
 authors = ["Karol Kuczmarski <karol.kuczmarski@gmail.com>"]
 keywords = ["cargo", "subcommand", "download", "fetch"]
