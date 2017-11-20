@@ -5,6 +5,7 @@
 
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::env;
 use std::io;
 
 use ansi_term::{Colour, Style};
@@ -65,6 +66,20 @@ pub fn init(verbosity: isize) -> Result<(), SetLoggerError> {
     // Include universal logger options, like the level.
     let mut builder = LogBuilder::new(stderr);
     builder = builder.filter(None, level);
+
+    // Make some of the libraries less chatty
+    // by raising the minimum logging level for them
+    // (e.g. Info means that Debug and Trace level logs are filtered).
+    builder = builder
+        .filter(Some("hyper"), FilterLevel::Info)
+        .filter(Some("tokio"), FilterLevel::Info);
+
+    // Include any additional config from environmental variables.
+    // This will override the options above if necessary,
+    // so e.g. it is still possible to get full debug output from hyper/tokio.
+    if let Ok(ref conf) = env::var("RUST_LOG") {
+        builder = builder.parse(conf);
+    }
 
     // Initialize the logger, possibly logging the excessive verbosity option.
     let env_logger_drain = builder.build();
