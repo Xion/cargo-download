@@ -7,6 +7,7 @@
              extern crate conv;
 #[macro_use] extern crate derive_error;
              extern crate exitcode;
+             extern crate flate2;
              extern crate isatty;
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate maplit;
@@ -17,6 +18,7 @@
              extern crate slog_stdlog;
              extern crate slog_stream;
              extern crate time;
+             extern crate tar;
 
 // `slog` must precede `log` in declarations here, because we want to simultaneously:
 // * use the standard `log` macros
@@ -70,9 +72,27 @@ fn main() {
         exit(exitcode::TEMPFAIL);
     });
 
-    // TODO: add option for writing somewhere else than stdout
-    // TODO: add option for extracting the gzipped crate as a directory
-    io::stdout().write(&crate_bytes).unwrap();
+    if opts.extract {
+        // Extract to a directory named $CRATE-$VERSION
+        // Due to how crate archives are structured (they contain
+        // single top-level directory) this is done automatically
+        // if you simply extract them in $CWD.
+        // TODO: allow to adjust this via an "output" command line flag
+        let dir = format!("{}-{}", opts.crate_.name, version);
+        debug!("Extracting crate archive to {}/", dir);
+        let gzip = flate2::read::GzDecoder::new(&crate_bytes[..]).unwrap();
+        let mut archive = tar::Archive::new(gzip);
+        match archive.unpack(".") {
+            Ok(_) => info!("Crate content extracted to ./{}", dir),
+            Err(e) => {
+                error!("Couldn't extract crate to {}/: {}", dir, e);
+                exit(exitcode::TEMPFAIL)
+            }
+        }
+    } else {
+        // TODO: add option for writing somewhere else than stdout
+        io::stdout().write(&crate_bytes).unwrap();
+    }
 }
 
 // Print an error that may occur while parsing arguments.

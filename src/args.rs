@@ -42,6 +42,8 @@ pub struct Options {
     pub verbosity: isize,
     /// Crate to download.
     pub crate_: Crate,
+    /// Whether to extract the crate's archive.
+    pub extract: bool,
 }
 
 #[allow(dead_code)]
@@ -61,8 +63,9 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
         let verbosity = verbose_count - quiet_count;
 
         let crate_ = Crate::from_str(matches.value_of(ARG_CRATE).unwrap())?;
+        let extract = matches.is_present(OPT_EXTRACT);
 
-        Ok(Options{verbosity, crate_})
+        Ok(Options{verbosity, crate_, extract})
     }
 }
 
@@ -154,6 +157,7 @@ lazy_static! {
 }
 
 const ARG_CRATE: &'static str = "crate";
+const OPT_EXTRACT: &'static str = "extract";
 const OPT_VERBOSE: &'static str = "verbose";
 const OPT_QUIET: &'static str = "quiet";
 
@@ -185,7 +189,19 @@ fn create_parser<'p>() -> Parser<'p> {
                 "the newest version of the crate is fetched. ",
                 "Alternatively, the VERSION requirement can be given after ",
                 "the equal sign (=) in the usual Cargo.toml format ",
-                "(e.g. \"foo==0.9\" for the exact version)")))
+                "(e.g. \"foo==0.9\" for the exact version).")))
+
+        .arg(Arg::with_name(OPT_EXTRACT)
+            .long("extract").short("x")
+            .required(false)
+            .multiple(false)
+            .takes_value(false)
+            .help("Whether to automatically extract the crate's archive")
+            .long_help(concat!(
+                "Specify this flag to have the crate extracted automatically.",
+                "\n\nNote that unless changed via the --output flag, ",
+                "this will extract the files to a new subdirectory ",
+                "bearing the name of the downloaded crate archive.")))
 
         // Verbosity flags.
         .arg(Arg::with_name(OPT_VERBOSE)
