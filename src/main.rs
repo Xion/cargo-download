@@ -35,6 +35,7 @@ use std::borrow::Cow;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::error::Error;
+use std::path::PathBuf;
 use std::process::exit;
 
 use log::LogLevel::*;
@@ -84,15 +85,27 @@ fn main() {
         // Due to how crate archives are structured (they contain
         // single top-level directory) this is done automatically
         // if you simply extract them in $CWD.
-        // TODO: allow to adjust this via an "output" command line flag
-        let dir = format!("{}-{}", opts.crate_.name(), version);
-        debug!("Extracting crate archive to {}/", dir);
+        let dir: PathBuf = format!("./{}-{}", opts.crate_.name(), version).into();
+        debug!("Extracting crate archive to {}/", dir.display());
         let gzip = flate2::read::GzDecoder::new(&crate_bytes[..]).unwrap();
         let mut archive = tar::Archive::new(gzip);
         match archive.unpack(".") {
-            Ok(_) => info!("Crate content extracted to ./{}", dir),
+            Ok(_) => {
+                // If -x option was passed, we need to move the extracted directory
+                // to wherever the user wanted.
+                let mut dir = dir;
+                if let Some(&Output::Path(ref p)) = opts.output.as_ref() {
+                    fs::rename(&dir, p).unwrap_or_else(|e| {
+                        error!("Failed to move extracted archive from {} to {}: {}",
+                            dir.display(), p.display(), e);
+                        exit(exitcode::IOERR)
+                    });
+                    dir = p.clone();
+                }
+                info!("Crate content extracted to {}/", dir.display());
+            }
             Err(e) => {
-                error!("Couldn't extract crate to {}/: {}", dir, e);
+                error!("Couldn't extract crate to {}/: {}", dir.display(), e);
                 exit(exitcode::TEMPFAIL)
             }
         }

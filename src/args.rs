@@ -71,6 +71,13 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
         let extract = matches.is_present(OPT_EXTRACT);
         let output = matches.value_of(OPT_OUTPUT).map(Output::from);
 
+        // TODO: sanity check Output::Path that it doesn't exist,
+        // because fs::rename behaves oddly (i.e. fails) on Windows
+        // if a directory target exists
+        if extract && output == Some(Output::Stdout) {
+            return Err(ArgsError::CantExtractToStdout);
+        }
+
         Ok(Options{verbosity, crate_, extract, output})
     }
 }
@@ -202,6 +209,9 @@ pub enum ArgsError {
     Parse(clap::Error),
     /// Error when parsing crate version.
     Crate(CrateError),
+    /// Cannot pass -x alpng with an explicit --output "-" (stdout).
+    #[error(no_from, non_std)]
+    CantExtractToStdout,
 }
 
 /// Error that can occur while parsing CRATE argument.
