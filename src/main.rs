@@ -32,6 +32,7 @@ mod logging;
 
 
 use std::borrow::Cow;
+use std::fs;
 use std::io::{self, Read, Write};
 use std::error::Error;
 use std::process::exit;
@@ -41,7 +42,7 @@ use reqwest::header::ContentLength;
 use semver::Version;
 use serde_json::Value as Json;
 
-use args::{ArgsError, Crate};
+use args::{ArgsError, Crate, Output};
 
 
 lazy_static! {
@@ -96,8 +97,20 @@ fn main() {
             }
         }
     } else {
-        // TODO: add option for writing somewhere else than stdout
-        io::stdout().write(&crate_bytes).unwrap();
+        let output = opts.output.as_ref().unwrap_or(&Output::Stdout);
+        match output {
+            &Output::Stdout => { io::stdout().write(&crate_bytes).unwrap(); }
+            &Output::Path(ref p) => {
+                let mut file = fs::OpenOptions::new()
+                    .write(true).create(true)
+                    .open(p).unwrap_or_else(|e| {
+                        error!("Failed to open output file {}: {}", p.display(), e);
+                        exit(exitcode::IOERR)
+                    });
+                file.write(&crate_bytes).unwrap();
+                info!("Crate's archive written to {}", p.display());
+            }
+        }
     }
 }
 
