@@ -203,15 +203,44 @@ impl fmt::Display for Output {
 
 
 /// Error that can occur while parsing of command line arguments.
-#[derive(Debug, Error)]
+#[derive(Debug)]
 pub enum ArgsError {
     /// General when parsing the arguments.
     Parse(clap::Error),
     /// Error when parsing crate version.
     Crate(CrateError),
     /// Cannot pass -x alpng with an explicit --output "-" (stdout).
-    #[error(no_from, non_std)]
     CantExtractToStdout,
+}
+impl From<clap::Error> for ArgsError {
+    fn from(input: clap::Error) -> Self {
+        ArgsError::Parse(input)
+    }
+}
+impl From<CrateError> for ArgsError {
+    fn from(input: CrateError) -> Self {
+        ArgsError::Crate(input)
+    }
+}
+impl Error for ArgsError {
+    fn description(&self) -> &str { "failed to parse argv" }
+    fn cause(&self) -> Option<&Error> {
+        match self {
+            &ArgsError::Parse(ref e) => Some(e),
+            &ArgsError::Crate(ref e) => Some(e),
+            _ => None,
+        }
+    }
+}
+impl fmt::Display for ArgsError {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &ArgsError::Parse(ref e) => write!(fmt, "parse error: {}", e),
+            &ArgsError::Crate(ref e) => write!(fmt, "invalid crate spec: {}", e),
+            &ArgsError::CantExtractToStdout =>
+                write!(fmt, "cannot extract a crate to standard output"),
+        }
+    }
 }
 
 /// Error that can occur while parsing CRATE argument.
