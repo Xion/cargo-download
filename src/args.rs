@@ -6,10 +6,12 @@ use std::error::Error;
 use std::fmt;
 use std::ffi::OsString;
 use std::iter::IntoIterator;
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use clap::{self, AppSettings, Arg, ArgMatches};
 use conv::TryFrom;
+use conv::errors::NoError;
 use semver::{Version, VersionReq, ReqParseError, SemVerError};
 
 use super::{NAME, VERSION};
@@ -45,6 +47,8 @@ pub struct Options {
     pub crate_: Crate,
     /// Whether to extract the crate's archive.
     pub extract: bool,
+    /// Where to output the crate's archive.
+    pub output: Option<Output>,
 }
 
 #[allow(dead_code)]
@@ -65,8 +69,9 @@ impl<'a> TryFrom<ArgMatches<'a>> for Options {
 
         let crate_ = Crate::from_str(matches.value_of(ARG_CRATE).unwrap())?;
         let extract = matches.is_present(OPT_EXTRACT);
+        let output = matches.value_of(OPT_OUTPUT).map(Output::from);
 
-        Ok(Options{verbosity, crate_, extract})
+        Ok(Options{verbosity, crate_, extract, output})
     }
 }
 
@@ -156,6 +161,39 @@ impl fmt::Display for CrateVersion {
     }
 }
 
+/// Defines where the program's output should ho.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum Output {
+    /// Output should go to a file or directory of given path.
+    Path(PathBuf),
+    /// Output should be on standard output.
+    Stdout,
+}
+impl<'s> From<&'s str> for Output {
+    fn from(s: &'s str) -> Output {
+        if s == "-" {
+            Output::Stdout
+        } else {
+            Output::Path(s.into())
+        }
+    }
+}
+impl FromStr for Output {
+    type Err = NoError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(s.into())
+    }
+}
+impl fmt::Display for Output {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &Output::Path(ref p) => write!(fmt, "{}", p.display()),
+            &Output::Stdout => write!(fmt, "-"),
+        }
+    }
+}
+
 
 /// Error that can occur while parsing of command line arguments.
 #[derive(Debug, Error)]
@@ -203,15 +241,6 @@ pub enum CrateVersionError {
     Syntax(SemVerError),
     Semantics(ReqParseError),
 }
-// impl fmt::Display for CrateVersionError {
-//     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-//         match self {
-//             &CrateVersionError::Syntax(ref e) => write!(fmt, "invalid crate version: {}", e),
-//             $CrateVersionError::Semantics(ref e) =>
-//                 write!(fmt, "incorrect crate version requirement: {}", e),
-//         }
-//     }
-// }
 
 
 // Parser configuration
@@ -227,6 +256,7 @@ lazy_static! {
 
 const ARG_CRATE: &'static str = "crate";
 const OPT_EXTRACT: &'static str = "extract";
+const OPT_OUTPUT: &'static str = "output";
 const OPT_VERBOSE: &'static str = "verbose";
 const OPT_QUIET: &'static str = "quiet";
 
@@ -271,6 +301,19 @@ fn create_parser<'p>() -> Parser<'p> {
                 "\n\nNote that unless changed via the --output flag, ",
                 "this will extract the files to a new subdirectory ",
                 "bearing the name of the downloaded crate archive.")))
+
+        .arg(Arg::with_name(OPT_OUTPUT)
+            .long("output").short("o")
+            .required(false)
+            .multiple(false)
+            .takes_value(true)
+            .help("Where to output the downloaded crate")
+            .long_help(concat!(
+                "Normally, the compressed crate is dumped to standard output, ",
+                "while the extract one (-x flag) is placed in a directory corresponding ",
+                "to crate's name.\n",
+                "This flag allows to change that by providing an explicit ",
+                "file or directory path.")))
 
         // Verbosity flags.
         .arg(Arg::with_name(OPT_VERBOSE)
