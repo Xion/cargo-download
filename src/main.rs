@@ -39,7 +39,7 @@ use std::path::PathBuf;
 use std::process::exit;
 
 use log::LogLevel::*;
-use reqwest::header::ContentLength;
+use reqwest::header::CONTENT_LENGTH;
 use semver::Version;
 use serde_json::Value as Json;
 
@@ -187,11 +187,12 @@ fn download_crate(name: &str, version: &Version) -> Result<Vec<u8>, Box<Error>> 
     debug!("Downloading crate `{}=={}` from {}", name, version, download_url);
     let mut response = reqwest::get(&download_url)?;
 
-    let content_length = response.headers().get::<ContentLength>().map(|&cl| *cl);
-    trace!("Download size: {}",
-        content_length.map(|cl| format!("{} bytes", cl)).unwrap_or_else(|| "<unknown>".into()));
+    let content_length: Option<usize> = response.headers().get(CONTENT_LENGTH)
+        .and_then(|ct_len| ct_len.to_str().ok())
+        .and_then(|ct_len| ct_len.parse().ok());
+    trace!("Download size: {}", content_length.map_or("<unknown>".into(), |cl| format!("{} bytes", cl)));
     let mut bytes = match content_length {
-        Some(cl) => Vec::with_capacity(cl as usize),
+        Some(cl) => Vec::with_capacity(cl),
         None => Vec::new(),
     };
     response.read_to_end(&mut bytes)?;
