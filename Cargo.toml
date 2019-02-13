@@ -1,12 +1,12 @@
 [package]
 name = "cargo-download"
-version = "0.1.1"
+version = "0.1.2"
 description = "Cargo subcommand for downloading crate sources"
 authors = ["Karol Kuczmarski <karol.kuczmarski@gmail.com>"]
 keywords = ["cargo", "subcommand", "download", "fetch"]
 license = "MIT"
 readme = "README.md"
-categories = ["development-tools", "development-tools:cargo-plugins"]
+categories = ["development-tools", "development-tools::cargo-plugins"]
 documentation = "https://docs.rs/cargo-download"
 homepage = "https://github.com/Xion/cargo-download"
 repository = "https://github.com/Xion/cargo-download.git"
