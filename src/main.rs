@@ -112,7 +112,7 @@ fn main() {
     } else {
         let output = opts.output.as_ref().unwrap_or(&Output::Stdout);
         match output {
-            &Output::Stdout => { io::stdout().write(&crate_bytes).unwrap(); }
+            &Output::Stdout => { io::stdout().write_all(&crate_bytes).unwrap(); }
             &Output::Path(ref p) => {
                 let mut file = fs::OpenOptions::new()
                     .write(true).create(true)
@@ -120,7 +120,7 @@ fn main() {
                         error!("Failed to open output file {}: {}", p.display(), e);
                         exit(exitcode::IOERR)
                     });
-                file.write(&crate_bytes).unwrap();
+                file.write_all(&crate_bytes).unwrap();
                 info!("Crate's archive written to {}", p.display());
             }
         }
